@@ -1,162 +1,121 @@
-"""OwnYourCheckin: handler for Facebook Real Time Update for /user/feed.
+"""OwnYourResponses: turns likes, replies, etc. into posts on your web site.
 
-https://developers.facebook.com/docs/graph-api/real-time-updates/v2.2#receiveupdates
+Polls your social network activity and creates new posts on your WordPress site
+for public Facebook comments and likes, Instagram likes, and Twitter @-replies,
+retweets, and favorites.
 
-Creates and publishes a new WordPress post via the JSON API. Requires Jetpack
-for self-hosted WordPress.
-
-test command line:
-
-curl localhost:8080/user_feed_update \
-  -d '{"object":"user","entry":[{"changed_fields":["feed"]}]}'
+Uses WordPress's JSON API, which requires the Jetpack plugin for self-hosted
+WordPress.
 """
 
-__author__ = ['Ryan Barrett <ownyourcheckin@ryanb.org>']
+__author__ = ['Ryan Barrett <ownyourresponses@ryanb.org>']
 
-import datetime
 import logging
 import json
-import operator
 import string
 import urllib
 import urllib2
 
+from activitystreams import appengine_config
+from activitystreams import facebook
+from activitystreams import instagram
+from activitystreams import source as as_source
+from activitystreams import twitter
+from activitystreams.oauth_dropins import handlers
+from activitystreams.oauth_dropins.webutil import util
+
 from google.appengine.ext import ndb
 import webapp2
 
+# Change this to your WordPress site's domain.
+WORDPRESS_SITE_DOMAIN = 'localhost' if appengine_config.DEBUG else 'snarfed.org'
 
-def read(filename):
-  with open(filename) as f:
-    return f.read().strip()
+# ActivityStreams objectTypes and verbs to create posts for. You can add or
+# remove types here to control what gets posted to your site.
+TYPES = ('like', 'comment', 'share', 'rsvp-yes', 'rsvp-no', 'rsvp-maybe')
 
-FACEBOOK_APP_ID = read('facebook_app_id')
-FACEBOOK_ACCESS_TOKEN = read('facebook_access_token')
-FACEBOOK_VERIFY_TOKEN = 'fluffernutter'
+# Change these to the WordPress category ids you want to attach to each type.
+# If you don't want to attach categories to any types, just remove them.
+WORDPRESS_CATEGORIES = {
+  'like': 27,
+  'comment': 23,
+  'share': 28,
+  'rsvp-yes': 29,
+  'rsvp-no': 29,
+  'rsvp-maybe': 29,
+}
 
-WORDPRESS_SITE_DOMAIN = 'snarfed.org'
-WORDPRESS_ACCESS_TOKEN = read('wordpress.com_access_token')
+FACEBOOK_ACCESS_TOKEN = appengine_config.read('facebook_access_token')
+INSTAGRAM_ACCESS_TOKEN = appengine_config.read('instagram_access_token')
+TWITTER_ACCESS_TOKEN = appengine_config.read('twitter_access_token')
+TWITTER_ACCESS_TOKEN_SECRET = appengine_config.read('twitter_access_token_secret')
+WORDPRESS_ACCESS_TOKEN = appengine_config.read('wordpress_access_token')
 
 
-class Checkin(ndb.Model):
-  """Key name is Facebook checkin URL."""
-  checkin_json = ndb.TextProperty(required=True)
+class Response(ndb.Model):
+  """Key name is ActivityStreams activity id."""
+  activity_json = ndb.TextProperty(required=True)
   post_json = ndb.TextProperty()
   status = ndb.StringProperty(choices=('started', 'complete'), default='started')
   created = ndb.DateTimeProperty(auto_now_add=True)
   updated = ndb.DateTimeProperty(auto_now=True)
 
 
-class UpdateHandler(webapp2.RequestHandler):
+class PollHandler(webapp2.RequestHandler):
+  """Poll handler for cron job."""
 
   def get(self):
-    """Verifies a request from FB to confirm this endpoint.
+    sources = []
+    if FACEBOOK_ACCESS_TOKEN:
+      sources.append(facebook.Facebook(FACEBOOK_ACCESS_TOKEN))
+    if INSTAGRAM_ACCESS_TOKEN:
+      sources.append(instagram.Instagram(INSTAGRAM_ACCESS_TOKEN))
+    if TWITTER_ACCESS_TOKEN:
+      sources.append(twitter.Twitter(TWITTER_ACCESS_TOKEN,
+                                   TWITTER_ACCESS_TOKEN_SECRET))
 
-    https://developers.facebook.com/docs/graph-api/real-time-updates/v2.2#setupget
-    """
-    logging.info('Verification request: %s', self.request.params)
-    if self.request.get('hub.verify_token') == FACEBOOK_VERIFY_TOKEN:
-      self.response.headers['Content-Type'] = 'text/plain'
-      self.response.write(self.request.get('hub.challenge') + '\r\n')
+    for source in sources:
+      self.poll(source)
 
-  def post(self):
-    """Converts an FB checkin to a new WP post.
+  def poll(self, source):
+    activities = source.get_activities(user_id=as_source.ME)
+    resps = ndb.get_multi(ndb.Key('Response', util.trim_nulls(a['id']))
+                          for a in activities)
+    resps = {r.key.id(): r for r in resps if r}
 
-    Example request body:
+    for activity in activities:
+      obj = activity.get('object', {})
 
-    {"object" : "user",
-     "entry" : [{
-       "uid" : "10101456587354063",
-       "time" : 1421128210,
-       "id" : "10101456587354063",
-       "changed_fields" : ["feed"],
-     }]
-    }
+      # have we already posted or started on this response?
+      resp = resps.get(activity['id'])
+      type = as_source.object_type(activity)
+      if type not in TYPES or (resp and resp.status == 'complete'):
+        continue
+      elif resp:
+        logging.info('Retrying %s', resp)
+      else:
+        resp = Response.get_or_insert(id=activity['id'],
+                                      activity_json=json.dumps(activity))
+        logging.info('Created new Response: %s', resp)
 
-    The entry.id field is just an obfuscated form of the user id. So, I have to
-    fetch /user/feed each time and keep track of the posts I've seen. :(
-    ...or just find the first checkin in the last day, and give up if none (the
-    bootstrap case).
-    """
-    logging.info('Update request: %s', self.request.body)
-    req = json.loads(self.request.body)
+      # make WP API call to create post
+      # https://developer.wordpress.com/docs/api/1.1/post/sites/%24site/posts/new/
+      url = ('https://public-api.wordpress.com/rest/v1.1/sites/%s/posts/new' %
+             WORDPRESS_SITE_DOMAIN)
+      headers = {'authorization': 'Bearer ' + WORDPRESS_ACCESS_TOKEN}
+      resp = self.urlopen_json(url, headers=headers, data={
+        # uncomment for testing
+        # 'status': 'private',
+        'content': microformats2.object_to_html(activity),
+        'media_urls[]': activity.get('image') or obj.get('image'),
+      })
+      post_json = json.dumps(resp, indent=2)
+      logging.info('Created new post on %s: %s', WORDPRESS_SITE_DOMAIN, post_json)
 
-    if (req.get('object') != 'user' or
-        'feed' not in req.get('entry', [{}])[0].get('changed_fields', [])):
-      return
-
-    # load the user's recent FB posts. look for a checkin within the last day.
-    feed = self.fb_get('me/feed')
-    for post in feed.get('data', []):
-      # both facebook and app engine timestamps default to UTC
-      place = post.get('place')
-      created = post.get('created_time')
-      if (place and created and
-          datetime.datetime.strptime(created, '%Y-%m-%dT%H:%M:%S+0000') >=
-          datetime.datetime.now() - datetime.timedelta(days=1)):
-        checkin_json = json.dumps(post, indent=2)
-        logging.info('Found checkin:\n%s', checkin_json)
-        break
-    else:
-      logging.info('No checkin found within the last day. Aborting.')
-      return
-
-    # have we already posted this checkin?
-    post_url = 'https://www.facebook.com/%s/posts/%s' % tuple(post['id'].split('_'))
-    checkin = Checkin.get_by_id(post_url)
-    if checkin and checkin.status == 'complete':
-      logging.info("We've already posted this checkin! Bailing out.")
-      return
-    elif not checkin:
-      logging.info('First time seeing this checkin.')
-      checkin = Checkin(id=post_url, checkin_json=checkin_json)
-      checkin.put()
-
-    # generate WP post body
-    people = ''
-    with_tags = post.get('with_tags', {}).get('data', [])
-    if with_tags:
-      people = ' with ' + ','.join(
-          '<a class="h-card" href="https://www.facebook.com/%(id)s">'
-            '%(name)s</a>' % tag
-          for tag in with_tags)
-
-    image = image_url = ''
-    object_id = post.get('object_id')
-    if post.get('type') == 'photo' and object_id:
-      obj = self.fb_get(object_id)
-      image_url = max(obj.get('images', []),
-                      key=operator.itemgetter('height'))['source']
-      # image = '<a href="%s"><img class="alignnone size-full" src="%s"/></a>' % \
-      #         (image_url, image_url)
-
-    content = string.Template("""\
-$message
-<blockquote class="h-as-checkin">
-At <a class="h-card p-location"
-      href="https://www.facebook.com/$id">$name</a>$people.
-</blockquote>
-<a class="u-syndication" href="$post_url"></a>
-""").substitute(message=post.get('message'), post_url=post_url, people=people, **place)
-
-    # make WP API call to create post
-    url = ('https://public-api.wordpress.com/rest/v1.1/sites/%s/posts/new' %
-           WORDPRESS_SITE_DOMAIN)
-            # 'media_urls[]': '',
-    headers = {'authorization': 'Bearer ' + WORDPRESS_ACCESS_TOKEN}
-    resp = self.urlopen_json(url, headers=headers, data={
-      # uncomment for testing
-      # 'status': 'private',
-      'content': content,
-      'media_urls[]': image_url})
-    post_json = json.dumps(resp, indent=2)
-    logging.info('Response:\n%s', post_json)
-
-    # store success in datastore
-    # TODO: make this transactional with the wordpress post via storing and
-    # querying extra metadata in wp.
-    checkin.post_json = post_json
-    checkin.status = 'complete'
-    checkin.put()
+      # store success in datastore
+      resp.post_json = post_json
+      resp.status = 'complete'
+      resp.put()
 
   def urlopen_json(self, url, data=None, headers=None):
     logging.info('Fetching %s with data %s', url, data)
@@ -175,11 +134,7 @@ At <a class="h-card p-location"
       logging.error('Non-JSON response: %s', resp)
       raise
 
-  def fb_get(self, path):
-    return self.urlopen_json('https://graph.facebook.com/%s?access_token=%s' %
-                             (path, FACEBOOK_ACCESS_TOKEN))
-
 
 application = webapp2.WSGIApplication(
-  [('/user_feed_update', UpdateHandler),
+  [('/cron/poll', PollHandler),
    ], debug=False)

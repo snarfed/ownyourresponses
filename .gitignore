@@ -3,6 +3,13 @@ facebook_access_token
 facebook_app_id
 facebook_app_secret
 facebook_app_token
+instagram_access_token
+instagram_client_id
+instagram_client_secret
+twitter_access_token
+twitter_access_token_secret
+twitter_app_key
+twitter_app_secret
 wordpress.com_access_token
 wordpress.com_client_id
 wordpress.com_client_secret

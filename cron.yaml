@@ -1,0 +1,6 @@
+# timezone defaults to UTC
+
+cron:
+- description: polls silos for new responses
+  url: /cron/poll
+  schedule: every 30 minutes

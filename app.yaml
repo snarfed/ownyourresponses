@@ -1,5 +1,5 @@
-application: ownyourcheckin
-version: 3
+application: ownyourresponses
+version: 1
 runtime: python27
 threadsafe: yes
 api_version: 1
@@ -21,8 +21,9 @@ handlers:
   upload: static/index.html
   secure: always
 
-- url: /user_feed_update
+- url: /cron/poll
   script: app.application
+  login: admin
   secure: always
 
 skip_files:
