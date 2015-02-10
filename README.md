@@ -9,13 +9,45 @@ Currently supports WordPress. I'll port it to [Micropub](https://indiewebcamp.co
 
 ## Silo API details
 
-**Twitter** has a [streaming API](https://dev.twitter.com/docs/streaming-apis) that sends events for new favorites and tweets (including @-replies and retweets). Bridgy [has used it before](https://github.com/snarfed/bridgy/blob/master/twitter_streaming.py). [It broke when Bridgy went over 100ish Twitter users](https://github.com/snarfed/bridgy/issues/57), but it would work for just one user. Even so, [it's a bit expensive on App Engine](https://github.com/snarfed/bridgy/issues/8), so I'd probably just poll [`/statuses/user_timeline`](https://dev.twitter.com/rest/reference/get/statuses/user_timeline) and [`/favorites/list`](https://dev.twitter.com/rest/reference/get/favorites/list).
+### Twitter
 
-**Facebook**'s [Real Time Updates](https://developers.facebook.com/docs/graph-api/real-time-updates/) should work. I've already used it in [ownyourcheckin](https://github.com/snarfed/ownyourcheckin). I'd subscribe to `/user/likes` and `/user/feed`, which I _think_ should include comments. I could also poll those endpoints.
+Twitter has a [streaming API](https://dev.twitter.com/docs/streaming-apis) that sends events for new favorites and tweets (including @-replies and retweets). Bridgy [has used it before](https://github.com/snarfed/bridgy/blob/master/twitter_streaming.py). [It broke when Bridgy went over 100ish Twitter users](https://github.com/snarfed/bridgy/issues/57), but it would work for just one user. Even so, [it's a bit expensive on App Engine](https://github.com/snarfed/bridgy/issues/8), so I'd probably just poll [`/statuses/user_timeline`](https://dev.twitter.com/rest/reference/get/statuses/user_timeline) and [`/favorites/list`](https://dev.twitter.com/rest/reference/get/favorites/list).
 
-**Google+** has no way to get comments *or* +1s by user, only by post. [API docs](https://developers.google.com/+/api/latest/); [feature request](https://code.google.com/p/google-plus-platform/issues/detail?id=89); [SO answer](http://stackoverflow.com/a/19817758/186123).
+### Google+
 
-**Instagram** can get [likes by user](http://instagram.com/developer/endpoints/users/#get_users_feed_liked), but [not comments](http://stackoverflow.com/a/22002350/186123).
+Google+ has no way to get comments *or* +1s by user, only by post. [API docs](https://developers.google.com/+/api/latest/); [feature request](https://code.google.com/p/google-plus-platform/issues/detail?id=89); [SO answer](http://stackoverflow.com/a/19817758/186123).
+
+### Instagram
+
+Instagram can get [likes by user](http://instagram.com/developer/endpoints/users/#get_users_feed_liked), but [not comments](http://stackoverflow.com/a/22002350/186123).
+
+### Facebook
+
+Facebook's [Real Time Updates](https://developers.facebook.com/docs/graph-api/real-time-updates/) should work. I've already used it in [ownyourcheckin](https://github.com/snarfed/ownyourcheckin). I'd subscribe to `/user/likes` and `/user/feed`, which I _think_ should include comments. I could also poll those endpoints.
+
+...ugh, except they only tell me *that* I liked or commented on something, not *what* I liked or commented on. Here are example objects from those API endpoints:
+
+```json
+{
+  "id": "212038_10101426802642863",
+  "from": {"id": "212038", "name": "Ryan Barrett"},
+  "story": "Ryan Barrett likes a post.",
+  "story_tags": {...}
+  "type": "status",
+  "created_time": "2014-12-26T17:41:20+0000",
+  "updated_time": "2014-12-26T17:41:20+0000"
+}
+
+{
+  "id": "212038_10101488100217033",
+  "from": {"id": "212038", "name": "Ryan Barrett"},
+  "story": "Ryan Barrett commented on his own photo.",
+  "story_tags": {...}
+  "type": "status",
+  "created_time": "2015-02-02T16:40:44+0000",
+  "updated_time": "2015-02-02T16:40:44+0000"
+}
+```
 
 
 ## Setup

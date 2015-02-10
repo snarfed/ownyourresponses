@@ -71,9 +71,9 @@ class PollHandler(webapp2.RequestHandler):
     #   sources.append(facebook.Facebook(FACEBOOK_ACCESS_TOKEN))
     if INSTAGRAM_ACCESS_TOKEN:
       sources.append(instagram.Instagram(INSTAGRAM_ACCESS_TOKEN))
-    # if TWITTER_ACCESS_TOKEN:
-    #   sources.append(twitter.Twitter(TWITTER_ACCESS_TOKEN,
-    #                                TWITTER_ACCESS_TOKEN_SECRET))
+    if TWITTER_ACCESS_TOKEN:
+      sources.append(twitter.Twitter(TWITTER_ACCESS_TOKEN,
+                                   TWITTER_ACCESS_TOKEN_SECRET))
 
     for source in sources:
       self.poll(source)
