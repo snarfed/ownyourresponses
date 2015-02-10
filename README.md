@@ -6,6 +6,8 @@ See [PESOS for Bridgy Publish](https://snarfed.org/2015-01-22_pesos-for-bridgy-p
 
 Currently supports WordPress. I'll port it to [Micropub](https://indiewebcamp.com/micropub) when the [WordPress Micropub plugin](https://github.com/snarfed/wordpress-micropub) is ready.
 
+This project is placed in the public domain. You may also use it under the [CC0 license](http://creativecommons.org/publicdomain/zero/1.0/).
+
 
 ## Silo API details
 
@@ -23,7 +25,7 @@ Instagram can get [likes by user](http://instagram.com/developer/endpoints/users
 
 ### Facebook
 
-Facebook's [Real Time Updates](https://developers.facebook.com/docs/graph-api/real-time-updates/) should work. I've already used it in [ownyourcheckin](https://github.com/snarfed/ownyourcheckin). I'd subscribe to `/user/likes` and `/user/feed`, which I _think_ should include comments. I could also poll those endpoints.
+Facebook's [Real Time Updates](https://developers.facebook.com/docs/graph-api/real-time-updates/) should work. I've already used it in [ownyourcheckin](https://github.com/snarfed/ownyourcheckin). I'd subscribe to `/user/likes` and `/user/feed`, which I _think_ should include likes and comments. I could also poll those endpoints.
 
 ...ugh, except they only tell me *that* I liked or commented on something, not *what* I liked or commented on. Here are example objects from those API endpoints:
 
@@ -32,7 +34,7 @@ Facebook's [Real Time Updates](https://developers.facebook.com/docs/graph-api/re
   "id": "212038_10101426802642863",
   "from": {"id": "212038", "name": "Ryan Barrett"},
   "story": "Ryan Barrett likes a post.",
-  "story_tags": {...}
+  "story_tags": {...},
   "type": "status",
   "created_time": "2014-12-26T17:41:20+0000",
   "updated_time": "2014-12-26T17:41:20+0000"
@@ -42,12 +44,14 @@ Facebook's [Real Time Updates](https://developers.facebook.com/docs/graph-api/re
   "id": "212038_10101488100217033",
   "from": {"id": "212038", "name": "Ryan Barrett"},
   "story": "Ryan Barrett commented on his own photo.",
-  "story_tags": {...}
+  "story_tags": {...},
   "type": "status",
   "created_time": "2015-02-02T16:40:44+0000",
   "updated_time": "2015-02-02T16:40:44+0000"
 }
 ```
+
+I can generate links from the ids that go to the appropriate stories, e.g. https://www.facebook.com/212038/posts/10101426802642863 and https://www.facebook.com/212038/posts/10101488100217033 , but I can't get the story or comment contents via the API. :(
 
 
 ## Setup

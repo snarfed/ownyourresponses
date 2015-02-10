@@ -67,8 +67,8 @@ class PollHandler(webapp2.RequestHandler):
 
   def get(self):
     sources = []
-    # if FACEBOOK_ACCESS_TOKEN:
-    #   sources.append(facebook.Facebook(FACEBOOK_ACCESS_TOKEN))
+    if FACEBOOK_ACCESS_TOKEN:
+      sources.append(facebook.Facebook(FACEBOOK_ACCESS_TOKEN))
     if INSTAGRAM_ACCESS_TOKEN:
       sources.append(instagram.Instagram(INSTAGRAM_ACCESS_TOKEN))
     if TWITTER_ACCESS_TOKEN:
@@ -107,8 +107,8 @@ class PollHandler(webapp2.RequestHandler):
       post = self.urlopen_json(url, headers=headers, data={
         # uncomment for testing
         # 'status': 'private',
-        'content': microformats2.object_to_html(activity),
-        'media_urls[]': activity.get('image') or obj.get('image'),
+        'content': self.render(source, activity),
+        # 'media_urls[]': activity.get('image') or obj.get('image'),
         'categories': WORDPRESS_CATEGORIES.get(type, ''),
       })
       post_json = json.dumps(post, indent=2)
@@ -119,8 +119,17 @@ class PollHandler(webapp2.RequestHandler):
       resp.status = 'complete'
       resp.put()
 
-      # TODO: remove when done testing
-      return
+      # uncomment for testing
+      # return
+
+  @staticmethod
+  def render(source, activity):
+    embed = source.embed_post(activity.get('object') or activity)
+    type = as_source.object_type(activity)
+    content = activity.get('content', '')
+    if type == 'share' and not content:
+      content = 'retweeted this.'
+    return embed + content if type == 'comment' else content + embed
 
   def urlopen_json(self, url, data=None, headers=None):
     logging.info('Fetching %s with data %s', url, data)
