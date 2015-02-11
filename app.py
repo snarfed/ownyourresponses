@@ -90,6 +90,8 @@ class PollHandler(webapp2.RequestHandler):
       # have we already posted or started on this response?
       resp = resps.get(activity['id'])
       type = as_source.object_type(activity)
+      if activity.get('context', {}).get('inReplyTo'):
+        type = 'comment'  # twitter reply
       if type not in TYPES or (resp and resp.status == 'complete'):
         continue
       elif resp:
