@@ -6,6 +6,7 @@ facebook_app_token
 instagram_access_token
 instagram_client_id
 instagram_client_secret
+micropub_access_token
 twitter_access_token
 twitter_access_token_secret
 twitter_app_key

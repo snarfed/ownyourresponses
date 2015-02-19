@@ -1,11 +1,8 @@
 """OwnYourResponses: turns likes, replies, etc. into posts on your web site.
 
-Polls your social network activity and creates new posts on your WordPress site
-for public Facebook comments and likes, Instagram likes, and Twitter @-replies,
-retweets, and favorites.
-
-Uses WordPress's JSON API, which requires the Jetpack plugin for self-hosted
-WordPress.
+Polls your social network activity and creates new posts on your web site (via
+Micropub) for public Facebook comments and likes, Instagram likes, and Twitter
+@-replies, retweets, and favorites.
 """
 
 __author__ = ['Ryan Barrett <ownyourresponses@ryanb.org>']
@@ -28,35 +25,38 @@ from activitystreams.oauth_dropins.webutil import util
 from google.appengine.ext import ndb
 import webapp2
 
-# Change this to your WordPress site's domain.
-WORDPRESS_SITE_DOMAIN = 'snarfed.org'
+# Change this to your web site's Micropub endpoint.
+# https://indiewebcamp.com/micropub
+# MICROPUB_ENDPOINT = 'https://snarfed.org/w/?micropub=endpoint'
+MICROPUB_ENDPOINT = 'http://localhost/w/?micropub=endpoint'
 
 # ActivityStreams objectTypes and verbs to create posts for. You can add or
 # remove types here to control what gets posted to your site.
 TYPES = ('like', 'comment', 'share', 'rsvp-yes', 'rsvp-no', 'rsvp-maybe')
 
-# Change these to the WordPress category ids or names you want to attach to each
-# type. If you don't want to attach categories to any types, just remove them.
-WORDPRESS_CATEGORIES = {
-  'like': 27,
-  'comment': 23,
-  'share': 28,
-  'rsvp-yes': 29,
-  'rsvp-no': 29,
-  'rsvp-maybe': 29,
+# The category to include with each response type. If you don't want categories
+# for any (or all) types, just remove them.
+CATEGORIES = {
+  'like': 'like',
+  'comment': 'reply',
+  'share': 'repost',
+  'rsvp-yes': 'rsvp',
+  'rsvp-no': 'rsvp',
+  'rsvp-maybe': 'rsvp',
 }
 
 FACEBOOK_ACCESS_TOKEN = appengine_config.read('facebook_access_token')
 INSTAGRAM_ACCESS_TOKEN = appengine_config.read('instagram_access_token')
 TWITTER_ACCESS_TOKEN = appengine_config.read('twitter_access_token')
 TWITTER_ACCESS_TOKEN_SECRET = appengine_config.read('twitter_access_token_secret')
-WORDPRESS_ACCESS_TOKEN = appengine_config.read('wordpress.com_access_token')
+MICROPUB_ACCESS_TOKEN = appengine_config.read('micropub_access_token')
 
 
 class Response(ndb.Model):
   """Key name is ActivityStreams activity id."""
   activity_json = ndb.TextProperty(required=True)
-  post_json = ndb.TextProperty()
+  post_url = ndb.TextProperty()
+  response_body = ndb.TextProperty()
   status = ndb.StringProperty(choices=('started', 'complete'), default='started')
   created = ndb.DateTimeProperty(auto_now_add=True)
   updated = ndb.DateTimeProperty(auto_now=True)
@@ -67,10 +67,10 @@ class PollHandler(webapp2.RequestHandler):
 
   def get(self):
     sources = []
-    if FACEBOOK_ACCESS_TOKEN:
-      sources.append(facebook.Facebook(FACEBOOK_ACCESS_TOKEN))
-    if INSTAGRAM_ACCESS_TOKEN:
-      sources.append(instagram.Instagram(INSTAGRAM_ACCESS_TOKEN))
+    # if FACEBOOK_ACCESS_TOKEN:
+    #   sources.append(facebook.Facebook(FACEBOOK_ACCESS_TOKEN))
+    # if INSTAGRAM_ACCESS_TOKEN:
+    #   sources.append(instagram.Instagram(INSTAGRAM_ACCESS_TOKEN))
     if TWITTER_ACCESS_TOKEN:
       sources.append(twitter.Twitter(TWITTER_ACCESS_TOKEN,
                                    TWITTER_ACCESS_TOKEN_SECRET))
@@ -89,8 +89,11 @@ class PollHandler(webapp2.RequestHandler):
 
       # have we already posted or started on this response?
       resp = resps.get(activity['id'])
+      mf2 = microformats2.object_to_json(activity)
+      mf2_props = microformats2.first_props(mf2.get('properties', {}))
       type = as_source.object_type(activity)
-      if activity.get('context', {}).get('inReplyTo'):
+
+      if mf2_props.get('in-reply-to'):
         type = 'comment'  # twitter reply
       if type not in TYPES or (resp and resp.status == 'complete'):
         continue
@@ -101,28 +104,31 @@ class PollHandler(webapp2.RequestHandler):
                                       activity_json=json.dumps(activity))
         logging.info('Created new Response: %s', resp)
 
-      # make WP API call to create post
-      # https://developer.wordpress.com/docs/api/1.1/post/sites/%24site/posts/new/
-      url = ('https://public-api.wordpress.com/rest/v1.1/sites/%s/posts/new' %
-             WORDPRESS_SITE_DOMAIN)
-      headers = {'authorization': 'Bearer ' + WORDPRESS_ACCESS_TOKEN}
-      post = self.urlopen_json(url, headers=headers, data={
-        # uncomment for testing
-        # 'status': 'private',
+      # make micropub call to create post
+      # http://indiewebcamp.com/micropub
+      #
+      # include access token in both header and post body for compatibility
+      # with servers that only support one or the other (for whatever reason).
+      headers = {'Authorization': 'Bearer ' + MICROPUB_ACCESS_TOKEN}
+      data = mf2_props
+      data.update({
+        'access_token': MICROPUB_ACCESS_TOKEN,
+        'h': 'entry',
+        'category[]': CATEGORIES.get(type),
         'content': self.render(source, activity),
-        # 'media_urls[]': activity.get('image') or obj.get('image'),
-        'categories': WORDPRESS_CATEGORIES.get(type, ''),
       })
-      post_json = json.dumps(post, indent=2)
-      logging.info('Created new post on %s: %s', WORDPRESS_SITE_DOMAIN, post_json)
+      for prop in 'url', 'author':
+        if prop in data:
+          del data[prop]
 
-      # store success in datastore
-      resp.post_json = post_json
-      resp.status = 'complete'
+      result = self.urlopen(MICROPUB_ENDPOINT, headers=headers,
+                            data=util.trim_nulls(data))
+
+      resp.post_url = result.info().get('Location')
+      logging.info('Created new post: %s', resp.post_url)
+      resp.response_body = result.read()
+      logging.info('Response body: %s', resp.response_body)
       resp.put()
-
-      # uncomment for testing
-      # return
 
   @staticmethod
   def render(source, activity):
@@ -133,21 +139,20 @@ class PollHandler(webapp2.RequestHandler):
       content = 'retweeted this.'
     return embed + content if type == 'comment' else content + embed
 
-  def urlopen_json(self, url, data=None, headers=None):
-    logging.info('Fetching %s with data %s', url, data)
+  def urlopen(self, url, data=None, headers=None):
+    logging.info('Fetching %s with headers %s, data %s', url, headers, data)
     if headers:
       url = urllib2.Request(url, headers=headers)
     if data:
       data = urllib.urlencode(data)
 
     try:
-      resp = urllib2.urlopen(url, timeout=600, data=data).read()
-      return json.loads(resp)
+      return urllib2.urlopen(url, timeout=600, data=data)
+    except urllib2.HTTPError, e:
+      logging.error('%s %s', e.reason, e.read())
+      raise
     except urllib2.URLError, e:
       logging.error(e.reason)
-      raise
-    except ValueError, e:
-      logging.error('Non-JSON response: %s', resp)
       raise
 
 

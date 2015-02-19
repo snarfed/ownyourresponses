@@ -4,9 +4,41 @@ Creates posts on your web site for your likes, replies, reshares, and event RSVP
 
 See [PESOS for Bridgy Publish](https://snarfed.org/2015-01-22_pesos-for-bridgy-publish) for background on the motivation.
 
-Currently supports WordPress. I'll port it to [Micropub](https://indiewebcamp.com/micropub) when the [WordPress Micropub plugin](https://github.com/snarfed/wordpress-micropub) is ready.
+Uses [Micropub](https://indiewebcamp.com/micropub). Your web site must have a
+Micropub endpoint.
+([Here's one for WordPress](https://github.com/snarfed/wordpress-micropub), for
+example.)
 
 This project is placed in the public domain. You may also use it under the [CC0 license](http://creativecommons.org/publicdomain/zero/1.0/).
+
+
+## Setup
+
+Setup
+---
+
+1. Clone this repo.
+
+1. Generate a [Micropub](https://indiewebcamp.com/micropub) access token for
+your web site.
+
+1. Put it in a file called `micropub_access_token` in the repo root directory.
+
+1. Create a
+[Twitter app](https://apps.twitter.com/app/new) and an
+[Instagram app](http://instagram.com/developer/clients/manage/). (No Facebook
+yet, since their API doesn't expose your recent likes or comments.)
+
+1. Put their app ids and secrets and access tokens in the repo root directory in
+files named `twitter_app_key`, `twitter_app_secret`, `twitter_access_token`,
+`instagram_client_id`, `instagram_client_secret`, and `instagram_access_token`.
+[Details here.](https://github.com/snarfed/oauth-dropins/blob/master/appengine_config.py)
+
+1. Create an [App Engine](http://appengine.google.com/) app, replace
+`ownyourresponses` in `app.yaml` with your app id, and deploy.
+
+...and you're done! Comment or like or retweet something, and it should
+automatically create a new post on your web site.
 
 
 ## Silo API details
@@ -52,23 +84,3 @@ Facebook's [Real Time Updates](https://developers.facebook.com/docs/graph-api/re
 ```
 
 I can generate links from the ids that go to the appropriate stories, e.g. https://www.facebook.com/212038/posts/10101426802642863 and https://www.facebook.com/212038/posts/10101488100217033 , but I can't get the story or comment contents via the API. :(
-
-
-## Setup
-
-Setup
----
-
-1. Clone this repo.
-
-1. [Create a new WordPress.com app.](https://developer.wordpress.com/apps/new/)
-
-1. Install the [Jetpack plugin](http://jetpack.me/) in your WordPress site, connect it to your [WordPress.com](http://wordpress.com/) account, and enable the [JSON API](http://jetpack.me/support/json-api/) feature.
-
-1. Generate an OAuth token for your WordPress.com app and put it into a file called `wordpress.com_access_token` in the repo root dir. (Sadly, I haven't found a way to generate this token manually. I generated mine by running [oauth-dropins](https://oauth-dropins.appspot.com/) locally and filling in my app's id and secret in the `wordpress.com_client_id` and `wordpress.com_client_secret` files.)
-
-1. Follow similar processes to create a [Facebook app](https://developers.facebook.com/quickstarts/?platform=web), [Twitter app](https://apps.twitter.com/app/new), and [Instagram app](http://instagram.com/developer/clients/manage/) and put their app ids and secretes and access tokens in similar files. [Details here.](https://github.com/snarfed/oauth-dropins/blob/master/appengine_config.py)
-
-1. Create an [App Engine](http://appengine.google.com/) app, replace `ownyourresponses` in `app.yaml` with your app id, and deploy.
-
-...and you're done! Comment or like or retweet something, and it should automatically create a new post on your WordPress site.
