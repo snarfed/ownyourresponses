@@ -27,8 +27,7 @@ import webapp2
 
 # Change this to your web site's Micropub endpoint.
 # https://indiewebcamp.com/micropub
-# MICROPUB_ENDPOINT = 'https://snarfed.org/w/?micropub=endpoint'
-MICROPUB_ENDPOINT = 'http://localhost/w/?micropub=endpoint'
+MICROPUB_ENDPOINT = 'https://snarfed.org/w/?micropub=endpoint'
 
 # ActivityStreams objectTypes and verbs to create posts for. You can add or
 # remove types here to control what gets posted to your site.

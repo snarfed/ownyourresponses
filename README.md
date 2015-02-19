@@ -19,6 +19,8 @@ Setup
 
 1. Clone this repo.
 
+1. Change `MICROPUB_ENDPOINT` in `app.py` to your site's endpoint.
+
 1. Generate a [Micropub](https://indiewebcamp.com/micropub) access token for
 your web site.
 
