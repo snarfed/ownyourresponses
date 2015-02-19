@@ -69,11 +69,11 @@ class PollHandler(webapp2.RequestHandler):
     sources = []
     # if FACEBOOK_ACCESS_TOKEN:
     #   sources.append(facebook.Facebook(FACEBOOK_ACCESS_TOKEN))
-    # if INSTAGRAM_ACCESS_TOKEN:
-    #   sources.append(instagram.Instagram(INSTAGRAM_ACCESS_TOKEN))
+    if INSTAGRAM_ACCESS_TOKEN:
+      sources.append(instagram.Instagram(INSTAGRAM_ACCESS_TOKEN))
     if TWITTER_ACCESS_TOKEN:
       sources.append(twitter.Twitter(TWITTER_ACCESS_TOKEN,
-                                   TWITTER_ACCESS_TOKEN_SECRET))
+                                     TWITTER_ACCESS_TOKEN_SECRET))
 
     for source in sources:
       self.poll(source)
@@ -104,6 +104,9 @@ class PollHandler(webapp2.RequestHandler):
                                       activity_json=json.dumps(activity))
         logging.info('Created new Response: %s', resp)
 
+      base_id = source.base_object(activity)['id']
+      base = source.get_activities(activity_id=base_id)[0]
+
       # make micropub call to create post
       # http://indiewebcamp.com/micropub
       #
@@ -115,7 +118,8 @@ class PollHandler(webapp2.RequestHandler):
         'access_token': MICROPUB_ACCESS_TOKEN,
         'h': 'entry',
         'category[]': CATEGORIES.get(type),
-        'content': self.render(source, activity),
+        'content': self.render(source, activity, base),
+        'name': base.get('content') or base.get('object', {}).get('content')
       })
       for prop in 'url', 'author':
         if prop in data:
@@ -128,16 +132,35 @@ class PollHandler(webapp2.RequestHandler):
       logging.info('Created new post: %s', resp.post_url)
       resp.response_body = result.read()
       logging.info('Response body: %s', resp.response_body)
+
+      resp.status = 'complete'
       resp.put()
 
+      # uncomment for testing
+      # return
+
+    # end loop over activities
+
   @staticmethod
-  def render(source, activity):
-    embed = source.embed_post(activity.get('object') or activity)
+  def render(source, activity, base):
+    obj = activity.get('object') or activity
+    content = microformats2.render_content(obj)
+    embed = source.embed_post(base)
+
     type = as_source.object_type(activity)
     content = activity.get('content', '')
     if type == 'share' and not content:
       content = 'retweeted this.'
-    return embed + content if type == 'comment' else content + embed
+
+    rendered = embed + content if type == 'comment' else content + embed
+
+    mf2_class = {'like': 'u-like-of',
+                 'share': 'u-repost-of',
+                 }.get(type, 'in-reply-to')
+    url = base.get('url')
+    rendered += '\n<a class="%s" href="%s"></a>' % (mf2_class, url)
+
+    return rendered
 
   def urlopen(self, url, data=None, headers=None):
     logging.info('Fetching %s with headers %s, data %s', url, headers, data)
