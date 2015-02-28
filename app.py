@@ -162,6 +162,8 @@ class PollHandler(webapp2.RequestHandler):
     return rendered
 
   def urlopen(self, url, data=None, headers=None):
+    data = {key: val.encode('utf-8') for key, val in data.items()}
+
     logging.info('Fetching %s with headers %s, data %s', url, headers, data)
     if headers:
       url = urllib2.Request(url, headers=headers)
