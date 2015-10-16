@@ -13,14 +13,14 @@ import string
 import urllib
 import urllib2
 
-from activitystreams import appengine_config
-from activitystreams import facebook
-from activitystreams import instagram
-from activitystreams import microformats2
-from activitystreams import source as as_source
-from activitystreams import twitter
-from activitystreams.oauth_dropins import handlers
-from activitystreams.oauth_dropins.webutil import util
+from granary import appengine_config
+from granary import facebook
+from granary import instagram
+from granary import microformats2
+from granary import source as as_source
+from granary import twitter
+from oauth_dropins import handlers
+from oauth_dropins.webutil import util
 
 from google.appengine.ext import ndb
 import webapp2
