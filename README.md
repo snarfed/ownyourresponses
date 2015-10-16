@@ -86,3 +86,7 @@ Facebook's [Real Time Updates](https://developers.facebook.com/docs/graph-api/re
 ```
 
 I can generate links from the ids that go to the appropriate stories, e.g. https://www.facebook.com/212038/posts/10101426802642863 and https://www.facebook.com/212038/posts/10101488100217033 , but I can't get the story or comment contents via the API. :(
+
+_Update:
+[They fixed this in API v2.3!](https://developers.facebook.com/docs/apps/changelog#v2_3)_
+> As of March 25, 2015 We now send content in Page real-time updates (RTUs). Previously, only the object's ID was in the RTU payload. Now we include content in addition to the ID including: statuses, posts, shares, photos, videos, milestones, likes and comments.
