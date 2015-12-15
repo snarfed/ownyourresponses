@@ -27,7 +27,9 @@ import webapp2
 
 # Change this to your web site's Micropub endpoint.
 # https://indiewebcamp.com/micropub
-MICROPUB_ENDPOINT = 'https://snarfed.org/w/?micropub=endpoint'
+MICROPUB_ENDPOINT = ('http://localhost/w/?micropub=endpoint'
+                     if appengine_config.DEBUG else
+                     'https://snarfed.org/w/?micropub=endpoint')
 
 # ActivityStreams objectTypes and verbs to create posts for. You can add or
 # remove types here to control what gets posted to your site.
@@ -105,6 +107,7 @@ class PollHandler(webapp2.RequestHandler):
 
       base_id = source.base_object(activity)['id']
       base = source.get_activities(activity_id=base_id)[0]
+      # logging.info(json.dumps(base, indent=2))
 
       # make micropub call to create post
       # http://indiewebcamp.com/micropub
@@ -112,18 +115,15 @@ class PollHandler(webapp2.RequestHandler):
       # include access token in both header and post body for compatibility
       # with servers that only support one or the other (for whatever reason).
       headers = {'Authorization': 'Bearer ' + MICROPUB_ACCESS_TOKEN}
-      data = mf2_props
+      data = {key: mf2_props.get(key) for key in
+              ('in-reply-to', 'like-of', 'repost-of', 'published', 'updated')}
       data.update({
         'access_token': MICROPUB_ACCESS_TOKEN,
         'h': 'entry',
         'category[]': CATEGORIES.get(type),
         'content': self.render(source, activity, base),
-        'name': base.get('content') or base.get('object', {}).get('content')
+        'name': base.get('content') or base.get('object', {}).get('content'),
       })
-      for prop in 'url', 'author':
-        if prop in data:
-          del data[prop]
-
       result = self.urlopen(MICROPUB_ENDPOINT, headers=headers,
                             data=util.trim_nulls(data))
 
@@ -156,8 +156,11 @@ class PollHandler(webapp2.RequestHandler):
     mf2_class = {'like': 'u-like-of',
                  'share': 'u-repost-of',
                  }.get(type, 'in-reply-to')
-    url = base.get('url')
-    rendered += '\n<a class="%s" href="%s"></a>' % (mf2_class, url)
+    url = (obj.get('inReplyTo') or [{}])[0].get('url') or base.get('url')
+    rendered += """
+<a class="%s" href="%s"></a>
+<a class="u-syndication" href="%s"></a>
+""" % (mf2_class, url, activity.get('url'))
 
     return rendered
 
