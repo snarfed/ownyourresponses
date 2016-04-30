@@ -115,15 +115,18 @@ class PollHandler(webapp2.RequestHandler):
       # include access token in both header and post body for compatibility
       # with servers that only support one or the other (for whatever reason).
       headers = {'Authorization': 'Bearer ' + MICROPUB_ACCESS_TOKEN}
-      data = {key: mf2_props.get(key) for key in
-              ('in-reply-to', 'like-of', 'repost-of', 'published', 'updated')}
-      data.update({
+      data = {
         'access_token': MICROPUB_ACCESS_TOKEN,
         'h': 'entry',
         'category[]': CATEGORIES.get(type),
         'content': self.render(source, activity, base),
         'name': base.get('content') or base.get('object', {}).get('content'),
-      })
+      }
+      for key in 'in-reply-to', 'like-of', 'repost-of', 'published', 'updated':
+        val = mf2_props.get(key)
+        if val:
+          data[key] = microformats2.get_string_urls([val])[0]
+
       result = self.urlopen(MICROPUB_ENDPOINT, headers=headers,
                             data=util.trim_nulls(data))
 
