@@ -85,6 +85,7 @@ class PollHandler(webapp2.RequestHandler):
                           for a in activities)
     resps = {r.key.id(): r for r in resps if r}
 
+    exception = None
     for activity in activities:
       obj = activity.get('object', {})
 
@@ -127,8 +128,15 @@ class PollHandler(webapp2.RequestHandler):
         if val:
           data[key] = microformats2.get_string_urls([val])[0]
 
-      result = self.urlopen(MICROPUB_ENDPOINT, headers=headers,
-                            data=util.trim_nulls(data))
+      try:
+        result = self.urlopen(MICROPUB_ENDPOINT, headers=headers,
+                              data=util.trim_nulls(data))
+      except urllib2.HTTPError as exception:
+        logging.exception('%s %s', e.reason, e.read())
+        continue
+      except urllib2.URLError as exception:
+        logging.exception(e.reason)
+        continue
 
       resp.post_url = result.info().get('Location')
       logging.info('Created new post: %s', resp.post_url)
@@ -142,6 +150,7 @@ class PollHandler(webapp2.RequestHandler):
       # return
 
     # end loop over activities
+    assert exception is None
 
   @staticmethod
   def render(source, activity, base):
@@ -175,15 +184,7 @@ class PollHandler(webapp2.RequestHandler):
       url = urllib2.Request(url, headers=headers)
     if data:
       data = urllib.urlencode(data)
-
-    try:
-      return urllib2.urlopen(url, timeout=600, data=data)
-    except urllib2.HTTPError, e:
-      logging.error('%s %s', e.reason, e.read())
-      raise
-    except urllib2.URLError, e:
-      logging.error(e.reason)
-      raise
+    return urllib2.urlopen(url, timeout=600, data=data)
 
 
 application = webapp2.WSGIApplication(
