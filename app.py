@@ -120,7 +120,7 @@ class PollHandler(webapp2.RequestHandler):
         'access_token': MICROPUB_ACCESS_TOKEN,
         'h': 'entry',
         'category[]': CATEGORIES.get(type),
-        'content': self.render(source, activity, base),
+        'content[html]': self.render(source, activity, base),
         'name': base.get('content') or base.get('object', {}).get('content'),
       }
       for key in 'in-reply-to', 'like-of', 'repost-of', 'published', 'updated':
