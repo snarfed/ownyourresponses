@@ -132,10 +132,10 @@ class PollHandler(webapp2.RequestHandler):
         result = self.urlopen(MICROPUB_ENDPOINT, headers=headers,
                               data=util.trim_nulls(data))
       except urllib2.HTTPError as exception:
-        logging.exception('%s %s', e.reason, e.read())
+        logging.exception('%s %s', exception.reason, exception.read())
         continue
       except urllib2.URLError as exception:
-        logging.exception(e.reason)
+        logging.exception(exception.reason)
         continue
 
       resp.post_url = result.info().get('Location')
