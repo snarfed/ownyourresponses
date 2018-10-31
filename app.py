@@ -4,14 +4,15 @@ Polls your social network activity and creates new posts on your web site (via
 Micropub) for public Facebook comments and likes, Instagram likes, and Twitter
 @-replies, retweets, and favorites.
 """
-
-__author__ = ['Ryan Barrett <ownyourresponses@ryanb.org>']
+from __future__ import unicode_literals
 
 import logging
 import json
 import string
 import urllib
 import urllib2
+
+from future.utils import bytes_to_native_str
 
 from granary import appengine_config
 from granary import facebook
@@ -177,7 +178,7 @@ class PollHandler(webapp2.RequestHandler):
     return rendered
 
   def urlopen(self, url, data=None, headers=None):
-    data = {key: val.encode('utf-8') for key, val in data.items()}
+    data = {key: bytes_to_native_str(val.encode('utf-8')) for key, val in data.items()}
 
     logging.info('Fetching %s with headers %s, data %s', url, headers, data)
     if headers:
