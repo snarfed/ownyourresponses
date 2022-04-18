@@ -97,7 +97,7 @@ def poll():
                         for a in activities)
   resps = {r.key.id(): r for r in resps if r}
 
-  exception = None
+  last_exception = None
   for activity in activities:
     obj = activity.get('object', {})
 
@@ -143,9 +143,11 @@ def poll():
     try:
       result = urlopen(MICROPUB_ENDPOINT, util.trim_nulls(data), headers=headers)
     except urllib.error.HTTPError as exception:
+      last_exception = exception
       logging.exception('%s %s', exception.reason, exception.read())
       continue
     except urllib.error.URLError as exception:
+      last_exception = exception
       logging.exception(exception.reason)
       continue
 
@@ -161,7 +163,7 @@ def poll():
     # return
 
   # end loop over activities
-  return ('Failed, see logs', 500) if exception else 'OK'
+  return ('Failed, see logs', 500) if last_exception else 'OK'
 
 def render(source, activity, base):
   obj = activity.get('object') or activity
