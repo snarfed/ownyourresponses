@@ -57,7 +57,7 @@ TWITTER_SCRAPE_HEADERS = json_loads(util.read('twitter_scrape_headers.schnarfed.
 
 
 # Flask app
-app = Flask('bridgy-fed')
+app = Flask('ownyourresponses')
 app.template_folder = './templates'
 app.config.from_mapping(
     ENV='development' if appengine_info.DEBUG else 'PRODUCTION',
