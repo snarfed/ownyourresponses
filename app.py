@@ -11,6 +11,7 @@ import urllib.error, urllib.parse, urllib.request
 from flask import Flask
 from google.cloud import ndb
 from granary import (
+  as1,
   facebook,
   instagram,
   microformats2,
@@ -105,7 +106,7 @@ def poll():
     resp = resps.get(activity['id'])
     mf2 = microformats2.object_to_json(activity)
     mf2_props = microformats2.first_props(mf2.get('properties', {}))
-    type = gr_source.object_type(activity)
+    type = as1.object_type(activity)
 
     if mf2_props.get('in-reply-to'):
       type = 'comment'  # twitter reply
@@ -170,7 +171,7 @@ def render(source, activity, base):
   content = microformats2.render_content(obj)
   embed = source.embed_post(base)
 
-  type = gr_source.object_type(activity)
+  type = as1.object_type(activity)
   content = activity.get('content', '')
   if type == 'share' and not content:
     content = 'retweeted this.'
